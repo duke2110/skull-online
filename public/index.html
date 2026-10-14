@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skull Online</title>
+<style>
+:root{
+  --bg:#14110f; --panel:#1f1a17; --panel2:#2a2420; --line:#3a312b; --text:#efe6d8; --dim:#9c8f80;
+  --bone:#e8dcc4; --rose:#c8334a; --rose2:#7d1f2e; --gold:#d9a441; --ok:#5fae7a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{min-height:100vh;background:radial-gradient(900px 500px at 50% -10%,#2b1d1a,transparent),var(--bg)}
+h1,h2{font-family:Georgia,"Times New Roman",serif;margin:0;letter-spacing:.02em}
+button{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);padding:.55em 1em;border-radius:10px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--dim)}
+button:disabled{opacity:.4;cursor:default}
+button.primary{background:var(--rose);border-color:var(--rose);color:#fff;font-weight:600}
+button.primary:hover:not(:disabled){background:#dc3d56}
+input{font:inherit;color:var(--text);background:#0f0d0b;border:1px solid var(--line);border-radius:10px;padding:.6em .8em;width:100%}
+input:focus{outline:2px solid var(--rose2)}
+.wrap{max-width:980px;margin:0 auto;padding:16px}
+.home{max-width:420px;margin:8vh auto 0;text-align:center}
+.home h1{font-size:3rem;color:var(--bone)}
+.home .sub{color:var(--dim);margin:.3em 0 1.6em}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;text-align:left}
+.card+.card{margin-top:12px}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{flex:1}.row>button{flex:0 0 auto}
+.lbl{font-size:.8rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.hdr{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}
+.hdr h2{font-size:1.3rem}
+.code{font-family:ui-monospace,monospace;background:var(--panel);border:1px solid var(--line);padding:.2em .6em;border-radius:8px;letter-spacing:.2em;color:var(--gold)}
+.banner{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.banner b{color:var(--gold)}
+.banner.me{border-left-color:var(--rose);background:#2a1b1d}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-bottom:12px}
+.pl{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;position:relative}
+.pl.turn{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.pl.out{opacity:.45}
+.pl .nm{font-weight:600;display:flex;justify-content:space-between;gap:6px}
+.pl .meta{font-size:.8rem;color:var(--dim);margin:2px 0 8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tag{font-size:.7rem;padding:.1em .5em;border-radius:99px;background:var(--panel2);border:1px solid var(--line);color:var(--dim)}
+.tag.bid{color:var(--gold);border-color:var(--gold)}
+.tag.off{color:#d77}
+.pips i{display:inline-block;width:10px;height:10px;transform:rotate(45deg);border:1px solid var(--gold);margin-right:5px}
+.pips i.on{background:var(--gold)}
+.mat{display:flex;min-height:46px;align-items:center;padding-left:6px}
+.disc{width:42px;height:42px;border-radius:50%;margin-left:-14px;flex:none;display:grid;place-items:center;font-size:20px;
+  background:radial-gradient(circle at 35% 30%,#4a3f37,#241d19);border:2px solid #5a4d43;box-shadow:0 2px 4px #0008;user-select:none}
+.mat .disc:first-child{margin-left:0}
+.disc.up{background:radial-gradient(circle at 35% 30%,#f4ead3,#cdbf9f);border-color:#fff3;color:#222}
+.disc.up.S{background:radial-gradient(circle at 35% 30%,#e8cfd3,#b98a92)}
+.disc.mine{border-style:dashed;border-color:var(--gold)}
+.disc.mine .g{opacity:.55;font-size:16px}
+.disc.back::after{content:"";width:16px;height:16px;border:2px solid #5a4d43;border-radius:50%;opacity:.6}
+.flipbtn{margin-top:8px;width:100%;padding:.35em}
+.hand{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px}
+.hand .disc{margin:0;width:54px;height:54px;font-size:26px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.stepper button{border:0;border-radius:0;background:var(--panel2);padding:.5em .9em}
+.stepper span{min-width:2.4em;text-align:center;font-weight:700;font-size:1.1rem}
+.log{max-height:190px;overflow:auto;font-size:.88rem;color:var(--dim);display:flex;flex-direction:column;gap:3px}
+.log div:last-child{color:var(--text)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#3a1a20;border:1px solid var(--rose);padding:.6em 1em;border-radius:10px;z-index:9;max-width:90vw}
+.plist{list-style:none;margin:0;padding:0}
+.plist li{padding:8px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}
+.plist li:last-child{border:0}
+.rules summary{cursor:pointer;color:var(--dim)}
+.rules ul{color:var(--dim);font-size:.9rem;padding-left:1.1em}
+.big{font-size:1.4rem;font-family:Georgia,serif}
+@media(max-width:520px){.grid{grid-template-columns:1fr 1fr}.disc{width:36px;height:36px;margin-left:-16px}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+const $app = document.getElementById('app');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const G = { F: '🌹', S: '💀' };
+let S = null, ws = null, myBid = 1, connected = false, toastT = null;
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch { return null; } },
+  set(k,v){ try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k,v); } catch {} }
+};
+let token = store.get('skull.token'), roomCode = store.get('skull.room');
+
+function send(o){ if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+function toast(msg){
+  clearTimeout(toastT); document.querySelectorAll('.toast').forEach(e => e.remove());
+  const d = document.createElement('div'); d.className = 'toast'; d.textContent = msg; document.body.appendChild(d);
+  toastT = setTimeout(() => d.remove(), 3000);
+}
+function connect(){
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+  ws.onopen = () => { connected = true; if (token && roomCode) send({ t: 'rejoin', code: roomCode, token }); render(); };
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.t === 'welcome') { token = m.token; roomCode = m.code; store.set('skull.token', token); store.set('skull.room', roomCode); }
+    else if (m.t === 'state') { S = m.s; render(); }
+    else if (m.t === 'err') { toast(m.msg); if (m.fatal) { token = roomCode = null; S = null; store.set('skull.token', null); store.set('skull.room', null); render(); } }
+  };
+  ws.onclose = () => { connected = false; setTimeout(connect, 1500); };
+}
+function leave(){ send({ t: 'leave' }); token = roomCode = null; S = null; store.set('skull.token', null); store.set('skull.room', null); history.replaceState(null, '', location.pathname); render(); }
+
+function render(){
+  if (!S) return renderHome();
+  if (S.phase === 'lobby') return renderLobby();
+  renderGame();
+}
+
+function renderHome(){
+  const preset = new URLSearchParams(location.search).get('r') || '';
+  const name = store.get('skull.name') || '';
+  $app.innerHTML = `
+  <div class="home">
+    <h1>💀 Skull</h1>
+    <div class="sub">Board game blốp – đặt hoa hồng, giấu đầu lâu, nói dối cho giỏi.</div>
+    <div class="card">
+      <div class="lbl">Tên của bạn</div>
+      <input id="name" maxlength="16" placeholder="Ví dụ: Đức" value="${esc(name)}">
+      <div style="height:14px"></div>
+      <button class="primary" style="width:100%" id="create" ${connected ? '' : 'disabled'}>Tạo phòng mới</button>
+    </div>
+    <div class="card">
+      <div class="lbl">Hoặc vào phòng bạn bè</div>
+      <div class="row"><input id="code" maxlength="4" placeholder="MÃ PHÒNG" style="text-transform:uppercase;letter-spacing:.2em" value="${esc(preset)}"><button id="join" ${connected ? '' : 'disabled'}>Vào</button></div>
+    </div>
+    <div class="card rules"><details><summary>Luật chơi tóm tắt</summary><ul>
+      <li>Mỗi người có 4 đĩa: 3 🌹 và 1 💀.</li>
+      <li>Mỗi ván, ai cũng đặt 1 đĩa úp. Sau đó tới lượt mình có thể đặt thêm đĩa, hoặc bắt đầu cược.</li>
+      <li>Cược = số hoa hồng bạn dám lật (tính tất cả đĩa trên bàn). Người khác có thể cược cao hơn hoặc bỏ qua.</li>
+      <li>Người cược cao nhất phải lật đủ số đó: trước hết đĩa của mình, rồi chọn đĩa của người khác (lật từ trên xuống).</li>
+      <li>Trúng 💀: mất 1 đĩa (💀 của người khác: mất ngẫu nhiên; 💀 của mình: tự chọn bỏ đĩa nào). Hết đĩa là bị loại.</li>
+      <li>Lật đủ hoa hồng: được 1 điểm. Đủ 2 điểm hoặc là người cuối cùng còn đĩa là thắng.</li>
+    </ul></details></div>
+  </div>`;
+  const nm = document.getElementById('name');
+  const getName = () => { const v = nm.value.trim(); store.set('skull.name', v); return v; };
+  document.getElementById('create').onclick = () => send({ t: 'create', name: getName() });
+  document.getElementById('join').onclick = () => send({ t: 'join', name: getName(), code: document.getElementById('code').value });
+}
+
+function shareLink(){ return location.origin + location.pathname + '?r=' + S.code; }
+
+function renderLobby(){
+  const host = S.hostId === S.you;
+  $app.innerHTML = `
+  <div class="hdr"><h2>💀 Phòng chờ</h2><button id="leave">Rời phòng</button></div>
+  <div class="card">
+    <div class="lbl">Mã phòng</div>
+    <div class="row"><span class="code big">${esc(S.code)}</span><button id="copy">Sao chép link mời</button></div>
+  </div>
+  <div class="card">
+    <div class="lbl">Người chơi (${S.players.length}/6)</div>
+    <ul class="plist">${S.players.map(p => `<li><span>${esc(p.name)}${p.id === S.hostId ? ' 👑' : ''}${p.id === S.you ? ' (bạn)' : ''}</span><span class="tag ${p.connected ? '' : 'off'}">${p.connected ? 'sẵn sàng' : 'mất kết nối'}</span></li>`).join('')}</ul>
+  </div>
+  <div style="margin-top:12px">
+    ${host ? `<button class="primary" style="width:100%" id="start" ${S.players.length < 2 ? 'disabled' : ''}>Bắt đầu${S.players.length < 3 ? ' (nên có 3+ người)' : ''}</button>` : `<div class="card" style="text-align:center;color:var(--dim)">Đợi chủ phòng bắt đầu…</div>`}
+  </div>`;
+  document.getElementById('leave').onclick = leave;
+  document.getElementById('copy').onclick = () => { navigator.clipboard?.writeText(shareLink()).then(() => toast('Đã sao chép link!'), () => toast(shareLink())); };
+  const st = document.getElementById('start'); if (st) st.onclick = () => send({ t: 'start' });
+}
+
+function discHTML(d, mine){
+  if (d.up) return `<span class="disc up ${d.t}">${G[d.t]}</span>`;
+  if (mine && d.t) return `<span class="disc mine back"><span class="g">${G[d.t]}</span></span>`;
+  return `<span class="disc back"></span>`;
+}
+
+function renderGame(){
+  const me = S.players.find(p => p.id === S.you);
+  const byId = id => S.players.find(p => p.id === id);
+  const myTurn = S.turn === S.you;
+  const allPlaced = S.players.every(p => p.out || p.mat.length >= 1);
+  const phase = S.phase;
+  const cur = byId(S.turn), ch = byId(S.challenger), bidder = byId(S.bidder);
+  const myUnrev = ch && ch.id === S.you ? me.mat.filter(d => !d.up).length : 0;
+
+  // banner
+  let banner = '', bcls = '';
+  if (phase === 'place') {
+    bcls = myTurn ? 'me' : '';
+    banner = !allPlaced
+      ? (myTurn ? '<b>Tới lượt bạn:</b> đặt 1 đĩa úp xuống (mỗi người phải đặt ít nhất 1).' : `Đang chờ <b>${esc(cur.name)}</b> đặt đĩa đầu tiên…`)
+      : (myTurn ? '<b>Tới lượt bạn:</b> đặt thêm đĩa, hoặc bắt đầu cược.' : `Tới lượt <b>${esc(cur.name)}</b>: đặt thêm hoặc cược.`);
+  } else if (phase === 'bid') {
+    bcls = myTurn ? 'me' : '';
+    banner = `Cược hiện tại: <b>${S.bid}</b> hoa hồng (${esc(bidder.name)}). ` + (myTurn ? '<b>Tới lượt bạn:</b> cược cao hơn hoặc bỏ qua.' : `Đợi <b>${esc(cur.name)}</b>…`);
+  } else if (phase === 'flip') {
+    bcls = ch.id === S.you ? 'me' : '';
+    banner = `<b>${esc(ch.name)}</b> phải lật <b>${S.bid}</b> hoa hồng — đã lật <b>${S.flowers}</b>.` + (ch.id === S.you ? (myUnrev > 0 ? ' Hãy lật đĩa của mình trước (bấm nút trên đĩa của bạn).' : ' Chọn đĩa của người khác để lật.') : '');
+  } else if (phase === 'choose') {
+    bcls = ch.id === S.you ? 'me' : '';
+    banner = ch.id === S.you ? '💀 Bạn lật trúng đầu lâu của chính mình! <b>Chọn đĩa muốn bỏ.</b>' : `💀 ${esc(ch.name)} trúng đầu lâu của chính mình, đang chọn đĩa bỏ…`;
+  } else if (phase === 'roundend') {
+    const r = S.result;
+    banner = r.type === 'success' ? `✅ <b>${esc(byId(r.challenger).name)}</b> lật đủ ${r.bid} hoa hồng và được 1 điểm!`
+      : `💀 <b>${esc(byId(r.challenger).name)}</b> trượt cược ${r.bid} và mất 1 đĩa${byId(r.challenger).out ? ' (bị loại!)' : ''}.`;
+    banner += ` Ván sau <b>${esc(byId(S.nextStarter).name)}</b> đi trước.`;
+  } else if (phase === 'gameover') {
+    banner = `🏆 <b>${esc(byId(S.winner).name)}</b> chiến thắng!`;
+  }
+
+  // players
+  const flipping = phase === 'flip' && ch.id === S.you;
+  const cards = S.players.map(p => {
+    const mine = p.id === S.you;
+    const canFlip = flipping && !p.out && (myUnrev > 0 ? mine : (!mine && p.mat.some(d => !d.up)));
+    const tags = [
+      p.id === S.bidder && S.bid > 0 && (phase === 'bid' || phase === 'flip') ? `<span class="tag bid">cược ${S.bid}</span>` : '',
+      p.passed && phase === 'bid' ? '<span class="tag">bỏ qua</span>' : '',
+      p.out ? '<span class="tag off">bị loại</span>' : '',
+      !p.connected ? '<span class="tag off">mất kết nối</span>' : '',
+    ].join('');
+    return `<div class="pl ${S.turn === p.id && ['place','bid'].includes(phase) ? 'turn' : ''} ${p.out ? 'out' : ''}">
+      <div class="nm"><span>${esc(p.name)}${mine ? ' (bạn)' : ''}</span><span class="pips">${[0,1].map(i => `<i class="${p.wins > i ? 'on' : ''}"></i>`).join('')}</span></div>
+      <div class="meta"><span>trên tay: ${p.handCount}</span>${tags}</div>
+      <div class="mat">${p.mat.map(d => discHTML(d, mine)).join('') || '<span style="color:var(--dim);font-size:.8rem">chưa đặt đĩa</span>'}</div>
+      ${canFlip ? `<button class="flipbtn primary" data-flip="${p.id}">Lật đĩa trên cùng</button>` : ''}
+    </div>`;
+  }).join('');
+
+  // my panel
+  let acts = '';
+  const handCount = t => S.hand.filter(x => x === t).length;
+  const maxBid = S.total, minBid = S.bid + 1;
+  if (me.out && phase !== 'gameover') acts = '<div style="color:var(--dim)">Bạn đã bị loại. Cứ ngồi xem nhé!</div>';
+  else if (phase === 'place' && myTurn) {
+    acts = `<div class="acts">
+      ${handCount('F') ? `<button data-place="F">Đặt 🌹 (còn ${handCount('F')})</button>` : ''}
+      ${handCount('S') ? `<button data-place="S">Đặt 💀</button>` : ''}
+    </div>` + (allPlaced ? bidControls(minBid, maxBid, false) : '');
+  } else if (phase === 'bid' && myTurn) acts = bidControls(minBid, maxBid, true);
+  else if (phase === 'choose' && ch.id === S.you) acts = `<div class="acts">${['F','S'].filter(handCount).map(t => `<button data-choose="${t}">Bỏ ${G[t]}</button>`).join('')}</div>`;
+  else if (phase === 'roundend') acts = `<div class="acts"><button class="primary" data-next>Ván tiếp theo</button></div>`;
+  else if (phase === 'gameover') acts = S.hostId === S.you ? `<div class="acts"><button class="primary" data-restart>Chơi lại (về phòng chờ)</button></div>` : '<div style="color:var(--dim)">Đợi chủ phòng bắt đầu ván mới.</div>';
+
+  $app.innerHTML = `
+  <div class="hdr"><h2>💀 Skull <span class="code" style="font-size:.9rem">${esc(S.code)}</span></h2><span style="color:var(--dim)">Ván ${S.round}${connected ? '' : ' · đang kết nối lại…'}</span></div>
+  <div class="banner ${bcls}">${banner}</div>
+  <div class="grid">${cards}</div>
+  <div class="card">
+    <div class="lbl">Đĩa trên tay bạn</div>
+    <div class="hand">${S.hand.map(t => `<span class="disc up ${t}">${G[t]}</span>`).join('') || '<span style="color:var(--dim)">trống</span>'}</div>
+    ${acts}
+  </div>
+  <div class="card"><div class="lbl">Nhật ký</div><div class="log" id="log">${S.log.map(l => `<div>${esc(l)}</div>`).join('')}</div></div>
+  <div style="margin-top:12px"><button id="leave">Thoát ván</button></div>`;
+
+  const lg = document.getElementById('log'); lg.scrollTop = lg.scrollHeight;
+  document.getElementById('leave').onclick = () => { if (confirm('Thoát khỏi ván này?')) leave(); };
+  $app.querySelectorAll('[data-flip]').forEach(b => b.onclick = () => send({ t: 'flip', target: b.dataset.flip }));
+  $app.querySelectorAll('[data-place]').forEach(b => b.onclick = () => send({ t: 'place', type: b.dataset.place }));
+  $app.querySelectorAll('[data-choose]').forEach(b => b.onclick = () => send({ t: 'choose', type: b.dataset.choose }));
+  $app.querySelectorAll('[data-next]').forEach(b => b.onclick = () => send({ t: 'next' }));
+  $app.querySelectorAll('[data-restart]').forEach(b => b.onclick = () => send({ t: 'restart' }));
+  const bm = document.getElementById('bminus'), bp = document.getElementById('bplus');
+  if (bm) {
+    const upd = () => { myBid = Math.min(maxBid, Math.max(minBid, myBid)); document.getElementById('bval').textContent = myBid; };
+    bm.onclick = () => { myBid--; upd(); }; bp.onclick = () => { myBid++; upd(); }; upd();
+    document.getElementById('dobid').onclick = () => send({ t: 'bid', n: myBid });
+    const ps = document.getElementById('dopass'); if (ps) ps.onclick = () => send({ t: 'pass' });
+  }
+}
+
+function bidControls(minBid, maxBid, canPass){
+  if (minBid > maxBid) return canPass ? `<div class="acts" style="margin-top:10px"><button id="dopass">Bỏ qua</button></div>` : '';
+  myBid = Math.min(maxBid, Math.max(minBid, myBid));
+  return `<div class="acts" style="margin-top:10px">
+    <span class="lbl" style="margin:0">Cược</span>
+    <span class="stepper"><button id="bminus">−</button><span id="bval">${myBid}</span><button id="bplus">+</button></span>
+    <span style="color:var(--dim)">/ ${maxBid} đĩa trên bàn</span>
+    <button class="primary" id="dobid">Cược</button>
+    ${canPass ? '<button id="dopass">Bỏ qua</button>' : ''}
+  </div>`;
+}
+
+render();
+connect();
+</script>
+</body>
+</html>
