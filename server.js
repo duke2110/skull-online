@@ -13,7 +13,7 @@ const server = http.createServer((req, res) => {
     res.end(d);
   });
 });
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ server, maxPayload: 64 * 1024 });
 const rooms = new Map();
 
 const rid = () => crypto.randomBytes(8).toString('hex');
@@ -176,7 +176,7 @@ function view(room, me) {
     hand: me.hand || [],
     log: room.log.slice(-40),
     players: room.players.map(q => ({
-      id: q.id, name: q.name, connected: q.connected, out: !!q.out, wins: q.wins || 0, passed: !!q.passed,
+      id: q.id, name: q.name, connected: q.connected, voice: !!q.voice, out: !!q.out, wins: q.wins || 0, passed: !!q.passed,
       handCount: (q.hand || []).length, mat: room.phase === 'lobby' ? [] : matOf(q),
     })),
   };
@@ -190,7 +190,7 @@ function broadcast(room) {
 function attach(ws, room, p) {
   if (p.ws && p.ws !== ws) { p.ws.ctx = null; try { p.ws.close(); } catch {} }
   p.ws = ws; p.connected = true; ws.ctx = { room, p };
-  send(ws, { t: 'welcome', token: p.id, code: room.code });
+  send(ws, { t: 'welcome', token: p.token, code: room.code });
   broadcast(room);
 }
 
@@ -203,7 +203,7 @@ wss.on('connection', ws => {
   ws.on('close', () => {
     const c = ws.ctx; if (!c) return;
     const { room, p } = c; if (p.ws !== ws) return;
-    p.ws = null; p.connected = false;
+    p.ws = null; p.connected = false; p.voice = false;
     if (room.phase === 'lobby') {
       setTimeout(() => {
         if (p.connected || room.phase !== 'lobby' || !rooms.has(room.code)) return;
@@ -221,7 +221,7 @@ function handle(ws, m) {
   if (m.t === 'create') {
     const name = clean(m.name); if (!name) return err(ws, 'Nhập tên của bạn.');
     const room = { code: newCode(), players: [], phase: 'lobby', log: [], round: 0, hostId: null, lastActive: Date.now() };
-    const p = { id: rid(), name, ws: null, connected: true, hand: [], stack: [], revealed: 0, wins: 0, out: false, passed: false };
+    const p = { id: rid(), token: rid(), name, ws: null, connected: true, hand: [], stack: [], revealed: 0, wins: 0, out: false, passed: false };
     room.players.push(p); room.hostId = p.id; rooms.set(room.code, room);
     return attach(ws, room, p);
   }
@@ -232,18 +232,24 @@ function handle(ws, m) {
     if (room.phase !== 'lobby') return err(ws, 'Phòng đã bắt đầu chơi.');
     if (room.players.length >= 6) return err(ws, 'Phòng đã đủ 6 người.');
     if (room.players.some(q => q.name.toLowerCase() === name.toLowerCase())) return err(ws, 'Tên này đã có người dùng trong phòng.');
-    const p = { id: rid(), name, ws: null, connected: true, hand: [], stack: [], revealed: 0, wins: 0, out: false, passed: false };
+    const p = { id: rid(), token: rid(), name, ws: null, connected: true, hand: [], stack: [], revealed: 0, wins: 0, out: false, passed: false };
     room.players.push(p);
     return attach(ws, room, p);
   }
   if (m.t === 'rejoin') {
     const room = rooms.get(String(m.code || '').toUpperCase());
-    const p = room && room.players.find(q => q.id === m.token);
+    const p = room && room.players.find(q => q.token === m.token);
     if (!p) return err(ws, 'Phòng không còn tồn tại.', true);
     return attach(ws, room, p);
   }
   const c = ws.ctx; if (!c) return;
   const { room, p } = c;
+  if (m.t === 'voice') { p.voice = !!m.on; return broadcast(room); }
+  if (m.t === 'rtc') {
+    const to = room.players.find(q => q.id === m.to);
+    if (to && to !== p && m.data && typeof m.data === 'object') send(to.ws, { t: 'rtc', from: p.id, data: m.data });
+    return;
+  }
   if (m.t === 'start') {
     if (room.hostId !== p.id || room.phase !== 'lobby') return;
     if (room.players.length < 2) return err(ws, 'Cần ít nhất 2 người (nên chơi 3–6 người).');
