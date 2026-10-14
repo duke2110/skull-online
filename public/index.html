@@ -72,6 +72,29 @@ input:focus{outline:2px solid var(--rose2)}
 .rules ul{color:var(--dim);font-size:.9rem;padding-left:1.1em}
 .big{font-size:1.4rem;font-family:Georgia,serif}
 @media(max-width:520px){.grid{grid-template-columns:1fr 1fr}.disc{width:36px;height:36px;margin-left:-16px}}
+
+@keyframes drop{0%{transform:translateY(-46px) scale(1.25) rotate(-12deg);opacity:0}60%{transform:translateY(4px) scale(.96);opacity:1}100%{transform:none}}
+@keyframes flipin{0%{transform:perspective(300px) rotateY(90deg) scale(1.15)}100%{transform:perspective(300px) rotateY(0)}}
+@keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.5)}100%{transform:scale(1)}}
+@keyframes shake{0%,100%{transform:none}15%{transform:translate(-8px,3px)}30%{transform:translate(7px,-4px)}45%{transform:translate(-6px,-2px)}60%{transform:translate(5px,3px)}80%{transform:translate(-2px,1px)}}
+@keyframes flash{0%{opacity:.6}100%{opacity:0}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 1px var(--gold) inset,0 0 0 0 #d9a44100}50%{box-shadow:0 0 0 1px var(--gold) inset,0 0 18px 2px #d9a44166}}
+@keyframes fall{0%{transform:translateY(0) rotate(0)}100%{transform:translateY(105vh) rotate(720deg)}}
+.disc.drop{animation:drop .45s cubic-bezier(.2,.8,.3,1)}
+.disc.flipin{animation:flipin .55s ease-out}
+.tag.pop{animation:pop .5s}
+.pl.turn{animation:pulse 1.8s infinite}
+#app.shake{animation:shake .5s}
+.fx{position:fixed;inset:0;pointer-events:none;z-index:8}
+.fx.red{background:radial-gradient(circle,transparent 30%,#c8334a 130%);animation:flash .9s forwards}
+.fx.gold{background:radial-gradient(circle,transparent 30%,#d9a441 130%);animation:flash .9s forwards}
+.conf{position:fixed;top:-20px;width:10px;height:14px;z-index:9;animation:fall linear forwards;pointer-events:none}
+.pl.speaking,.plist li.speaking{outline:2px solid #5fae7acc;outline-offset:1px}
+.row2{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+button.sm{padding:.3em .7em;font-size:.85rem}
+button.on{border-color:var(--ok);color:var(--ok)}
+button.off{border-color:var(--rose);color:#e88}
+@media(prefers-reduced-motion:reduce){.disc.drop,.disc.flipin,.pl.turn,#app.shake{animation:none}}
 </style>
 </head>
 <body>
@@ -81,11 +104,88 @@ const $app = document.getElementById('app');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const G = { F: '🌹', S: '💀' };
 let S = null, ws = null, myBid = 1, connected = false, toastT = null;
+let ANIM = { drop: {}, flip: {}, pop: false };
 const store = {
   get(k){ try { return localStorage.getItem(k); } catch { return null; } },
   set(k,v){ try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k,v); } catch {} }
 };
 let token = store.get('skull.token'), roomCode = store.get('skull.room');
+
+// ---------- Âm thanh (tổng hợp bằng WebAudio, không cần file) ----------
+let AC = null, muted = store.get('skull.muted') === '1';
+function ac(){
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch {} }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+document.addEventListener('pointerdown', () => ac());
+function tone(f, t0, dur, type = 'sine', vol = .15, f2){
+  const a = ac(); if (!a || muted) return; const t = a.currentTime + t0;
+  const o = a.createOscillator(), g = a.createGain(); o.type = type;
+  o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + dur + .05);
+}
+function noise(t0, dur, vol = .1, freq = 800){
+  const a = ac(); if (!a || muted) return; const t = a.currentTime + t0;
+  const buf = a.createBuffer(1, Math.max(1, a.sampleRate * dur | 0), a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+  const src = a.createBufferSource(); src.buffer = buf;
+  const fl = a.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = freq;
+  const g = a.createGain(); g.gain.value = vol; src.connect(fl); fl.connect(g); g.connect(a.destination); src.start(t);
+}
+const SFX = {
+  place(){ noise(0, .09, .22, 700); tone(150, 0, .13, 'sine', .28, 70); },
+  flip(){ noise(0, .05, .1, 3500); tone(660, .03, .25, 'triangle', .12); tone(990, .09, .3, 'triangle', .08); },
+  skull(){ tone(240, 0, .7, 'sawtooth', .17, 55); tone(120, .05, .8, 'square', .09, 40); },
+  bid(){ tone(520, 0, .08, 'square', .06); tone(780, .07, .12, 'square', .06); },
+  pass(){ tone(300, 0, .14, 'sine', .1, 190); },
+  turn(){ tone(880, 0, .12, 'sine', .11); tone(1175, .12, .2, 'sine', .09); },
+  success(){ tone(523, 0, .15, 'triangle', .14); tone(784, .12, .35, 'triangle', .14); },
+  win(){ [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, i * .11, .4, 'triangle', .15)); },
+  lose(){ [392, 330, 262].forEach((f, i) => tone(f, i * .22, .4, 'sawtooth', .09)); },
+};
+const sfx = n => { try { SFX[n](); } catch {} };
+
+// ---------- Hiệu ứng toàn màn hình ----------
+function fx(cls){ const d = document.createElement('div'); d.className = 'fx ' + cls; document.body.appendChild(d); setTimeout(() => d.remove(), 1000); }
+function shake(){ $app.classList.remove('shake'); void $app.offsetWidth; $app.classList.add('shake'); setTimeout(() => $app.classList.remove('shake'), 600); }
+function confetti(){
+  const cols = ['#d9a441', '#c8334a', '#e8dcc4', '#5fae7a'];
+  for (let i = 0; i < 70; i++) {
+    const c = document.createElement('div'); c.className = 'conf';
+    c.style.left = Math.random() * 100 + 'vw'; c.style.background = cols[i % cols.length];
+    c.style.animationDuration = (2 + Math.random() * 2.2) + 's'; c.style.animationDelay = Math.random() * .8 + 's';
+    document.body.appendChild(c); setTimeout(() => c.remove(), 5500);
+  }
+}
+
+// So sánh trạng thái cũ/mới để biết cần chạy animation + âm thanh nào
+function detect(prev, s){
+  ANIM = { drop: {}, flip: {}, pop: false };
+  if (!prev || prev.code !== s.code || prev.phase === 'lobby' || s.phase === 'lobby') return;
+  let placed = false, flipped = false;
+  s.players.forEach(p => {
+    const q = prev.players.find(x => x.id === p.id); if (!q) return;
+    if (s.round === prev.round && p.mat.length > q.mat.length) { ANIM.drop[p.id] = q.mat.length; placed = true; }
+    p.mat.forEach((d, i) => { if (d.up && !(q.mat[i] && q.mat[i].up)) { (ANIM.flip[p.id] = ANIM.flip[p.id] || new Set()).add(i); flipped = true; } });
+  });
+  const ended = s.phase !== prev.phase && ['roundend', 'choose', 'gameover'].includes(s.phase);
+  const failed = s.result && s.result.type === 'fail';
+  if (s.bid > 0 && s.bid !== prev.bid) ANIM.pop = true;
+  if (ended) {
+    if (s.phase === 'gameover') {
+      if (s.winner === s.you) { sfx('win'); confetti(); fx('gold'); } else { sfx('lose'); fx('red'); }
+    } else if (failed) { sfx('skull'); fx('red'); shake(); }
+    else { sfx('success'); fx('gold'); }
+  } else if (failed && s.phase === 'choose' && prev.phase !== 'choose') { sfx('skull'); fx('red'); shake(); }
+  else if (flipped) sfx('flip');
+  else if (placed) sfx('place');
+  else if (s.bid > 0 && s.bid !== prev.bid) sfx('bid');
+  else if (s.players.filter(p => p.passed).length > prev.players.filter(p => p.passed).length) sfx('pass');
+  if (!ended && s.turn === s.you && prev.turn !== s.you && ['place', 'bid'].includes(s.phase)) setTimeout(() => sfx('turn'), 250);
+}
+const animCls = (pid, i) => (ANIM.drop[pid] !== undefined && i >= ANIM.drop[pid] ? ' drop' : '') + (ANIM.flip[pid] && ANIM.flip[pid].has(i) ? ' flipin' : '');
 
 function send(o){ if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 function toast(msg){
@@ -98,13 +198,14 @@ function connect(){
   ws.onopen = () => { connected = true; if (token && roomCode) send({ t: 'rejoin', code: roomCode, token }); render(); };
   ws.onmessage = e => {
     const m = JSON.parse(e.data);
-    if (m.t === 'welcome') { token = m.token; roomCode = m.code; store.set('skull.token', token); store.set('skull.room', roomCode); }
-    else if (m.t === 'state') { S = m.s; render(); }
+    if (m.t === 'welcome') { token = m.token; roomCode = m.code; store.set('skull.token', token); store.set('skull.room', roomCode); if (voiceOn) send({ t: 'voice', on: true }); }
+    else if (m.t === 'state') { const prev = S; S = m.s; detect(prev, S); syncPeers(); render(); }
+    else if (m.t === 'rtc') { onRtc(m.from, m.data); }
     else if (m.t === 'err') { toast(m.msg); if (m.fatal) { token = roomCode = null; S = null; store.set('skull.token', null); store.set('skull.room', null); render(); } }
   };
   ws.onclose = () => { connected = false; setTimeout(connect, 1500); };
 }
-function leave(){ send({ t: 'leave' }); token = roomCode = null; S = null; store.set('skull.token', null); store.set('skull.room', null); history.replaceState(null, '', location.pathname); render(); }
+function leave(){ if (voiceOn) voiceStop(); send({ t: 'leave' }); token = roomCode = null; S = null; store.set('skull.token', null); store.set('skull.room', null); history.replaceState(null, '', location.pathname); render(); }
 
 function render(){
   if (!S) return renderHome();
@@ -149,27 +250,28 @@ function shareLink(){ return location.origin + location.pathname + '?r=' + S.cod
 function renderLobby(){
   const host = S.hostId === S.you;
   $app.innerHTML = `
-  <div class="hdr"><h2>💀 Phòng chờ</h2><button id="leave">Rời phòng</button></div>
+  <div class="hdr"><h2>💀 Phòng chờ</h2><div class="row2">${topBtns()}<button class="sm" id="leave">Rời phòng</button></div></div>
   <div class="card">
     <div class="lbl">Mã phòng</div>
     <div class="row"><span class="code big">${esc(S.code)}</span><button id="copy">Sao chép link mời</button></div>
   </div>
   <div class="card">
     <div class="lbl">Người chơi (${S.players.length}/6)</div>
-    <ul class="plist">${S.players.map(p => `<li><span>${esc(p.name)}${p.id === S.hostId ? ' 👑' : ''}${p.id === S.you ? ' (bạn)' : ''}</span><span class="tag ${p.connected ? '' : 'off'}">${p.connected ? 'sẵn sàng' : 'mất kết nối'}</span></li>`).join('')}</ul>
+    <ul class="plist">${S.players.map(p => `<li data-pid="${p.id}"><span>${esc(p.name)}${p.voice ? ' 🎙️' : ''}${p.id === S.hostId ? ' 👑' : ''}${p.id === S.you ? ' (bạn)' : ''}</span><span class="tag ${p.connected ? '' : 'off'}">${p.connected ? 'sẵn sàng' : 'mất kết nối'}</span></li>`).join('')}</ul>
   </div>
   <div style="margin-top:12px">
     ${host ? `<button class="primary" style="width:100%" id="start" ${S.players.length < 2 ? 'disabled' : ''}>Bắt đầu${S.players.length < 3 ? ' (nên có 3+ người)' : ''}</button>` : `<div class="card" style="text-align:center;color:var(--dim)">Đợi chủ phòng bắt đầu…</div>`}
   </div>`;
+  bindTop();
   document.getElementById('leave').onclick = leave;
   document.getElementById('copy').onclick = () => { navigator.clipboard?.writeText(shareLink()).then(() => toast('Đã sao chép link!'), () => toast(shareLink())); };
   const st = document.getElementById('start'); if (st) st.onclick = () => send({ t: 'start' });
 }
 
-function discHTML(d, mine){
-  if (d.up) return `<span class="disc up ${d.t}">${G[d.t]}</span>`;
-  if (mine && d.t) return `<span class="disc mine back"><span class="g">${G[d.t]}</span></span>`;
-  return `<span class="disc back"></span>`;
+function discHTML(d, mine, cls = ''){
+  if (d.up) return `<span class="disc up ${d.t}${cls}">${G[d.t]}</span>`;
+  if (mine && d.t) return `<span class="disc mine back${cls}"><span class="g">${G[d.t]}</span></span>`;
+  return `<span class="disc back${cls}"></span>`;
 }
 
 function renderGame(){
@@ -212,15 +314,16 @@ function renderGame(){
     const mine = p.id === S.you;
     const canFlip = flipping && !p.out && (myUnrev > 0 ? mine : (!mine && p.mat.some(d => !d.up)));
     const tags = [
-      p.id === S.bidder && S.bid > 0 && (phase === 'bid' || phase === 'flip') ? `<span class="tag bid">cược ${S.bid}</span>` : '',
+      p.id === S.bidder && S.bid > 0 && (phase === 'bid' || phase === 'flip') ? `<span class="tag bid${ANIM.pop ? ' pop' : ''}">cược ${S.bid}</span>` : '',
       p.passed && phase === 'bid' ? '<span class="tag">bỏ qua</span>' : '',
       p.out ? '<span class="tag off">bị loại</span>' : '',
       !p.connected ? '<span class="tag off">mất kết nối</span>' : '',
+      p.voice ? '<span class="tag">🎙️</span>' : '',
     ].join('');
-    return `<div class="pl ${S.turn === p.id && ['place','bid'].includes(phase) ? 'turn' : ''} ${p.out ? 'out' : ''}">
+    return `<div data-pid="${p.id}" class="pl ${S.turn === p.id && ['place','bid'].includes(phase) ? 'turn' : ''} ${p.out ? 'out' : ''}">
       <div class="nm"><span>${esc(p.name)}${mine ? ' (bạn)' : ''}</span><span class="pips">${[0,1].map(i => `<i class="${p.wins > i ? 'on' : ''}"></i>`).join('')}</span></div>
       <div class="meta"><span>trên tay: ${p.handCount}</span>${tags}</div>
-      <div class="mat">${p.mat.map(d => discHTML(d, mine)).join('') || '<span style="color:var(--dim);font-size:.8rem">chưa đặt đĩa</span>'}</div>
+      <div class="mat">${p.mat.map((d, i) => discHTML(d, mine, animCls(p.id, i))).join('') || '<span style="color:var(--dim);font-size:.8rem">chưa đặt đĩa</span>'}</div>
       ${canFlip ? `<button class="flipbtn primary" data-flip="${p.id}">Lật đĩa trên cùng</button>` : ''}
     </div>`;
   }).join('');
@@ -241,7 +344,7 @@ function renderGame(){
   else if (phase === 'gameover') acts = S.hostId === S.you ? `<div class="acts"><button class="primary" data-restart>Chơi lại (về phòng chờ)</button></div>` : '<div style="color:var(--dim)">Đợi chủ phòng bắt đầu ván mới.</div>';
 
   $app.innerHTML = `
-  <div class="hdr"><h2>💀 Skull <span class="code" style="font-size:.9rem">${esc(S.code)}</span></h2><span style="color:var(--dim)">Ván ${S.round}${connected ? '' : ' · đang kết nối lại…'}</span></div>
+  <div class="hdr"><h2>💀 Skull <span class="code" style="font-size:.9rem">${esc(S.code)}</span></h2><div class="row2">${topBtns()}<span style="color:var(--dim)">Ván ${S.round}${connected ? '' : ' · mất kết nối…'}</span></div></div>
   <div class="banner ${bcls}">${banner}</div>
   <div class="grid">${cards}</div>
   <div class="card">
@@ -252,6 +355,8 @@ function renderGame(){
   <div class="card"><div class="lbl">Nhật ký</div><div class="log" id="log">${S.log.map(l => `<div>${esc(l)}</div>`).join('')}</div></div>
   <div style="margin-top:12px"><button id="leave">Thoát ván</button></div>`;
 
+  ANIM = { drop: {}, flip: {}, pop: false };
+  bindTop();
   const lg = document.getElementById('log'); lg.scrollTop = lg.scrollHeight;
   document.getElementById('leave').onclick = () => { if (confirm('Thoát khỏi ván này?')) leave(); };
   $app.querySelectorAll('[data-flip]').forEach(b => b.onclick = () => send({ t: 'flip', target: b.dataset.flip }));
@@ -278,6 +383,120 @@ function bidControls(minBid, maxBid, canPass){
     <button class="primary" id="dobid">Cược</button>
     ${canPass ? '<button id="dopass">Bỏ qua</button>' : ''}
   </div>`;
+}
+
+// ---------- Voice chat (WebRTC, mỗi người nối trực tiếp với từng người) ----------
+const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+let voiceOn = false, micMuted = false, localStream = null;
+const peers = {}, levels = {};
+const audioBox = document.createElement('div'); audioBox.style.display = 'none'; document.body.appendChild(audioBox);
+
+async function voiceStart(){
+  if (voiceOn || !S) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return toast('Trình duyệt không hỗ trợ mic (cần mở bằng link https).');
+  try { localStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false }); }
+  catch { return toast('Không mở được mic. Hãy cho phép quyền micro cho trang này trong trình duyệt.'); }
+  voiceOn = true; micMuted = false; ac();
+  send({ t: 'voice', on: true });
+  watchLevel('local', localStream, S.you);
+  syncPeers(); render();
+}
+function voiceStop(){
+  voiceOn = false; send({ t: 'voice', on: false });
+  if (localStream) localStream.getTracks().forEach(t => t.stop());
+  localStream = null;
+  Object.keys(peers).forEach(closePeer); stopLevel('local'); render();
+}
+function toggleMute(){
+  micMuted = !micMuted;
+  if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = !micMuted);
+  render();
+}
+function closePeer(id){
+  const p = peers[id]; if (!p) return; delete peers[id];
+  try { p.pc.close(); } catch {}
+  if (p.audio) { p.audio.srcObject = null; p.audio.remove(); }
+  stopLevel(id);
+}
+// Quy tắc: bên có id nhỏ hơn là người gọi (offer), tránh hai bên gọi nhau cùng lúc
+function syncPeers(){
+  if (!S) return;
+  const want = new Set(voiceOn ? S.players.filter(p => p.id !== S.you && p.voice && p.connected).map(p => p.id) : []);
+  Object.keys(peers).forEach(id => { if (!want.has(id)) closePeer(id); });
+  want.forEach(id => { if (!peers[id] && S.you < id) makeOffer(id); });
+}
+function newPeer(id){
+  const pc = new RTCPeerConnection(ICE), peer = { pc, pending: [] }; peers[id] = peer;
+  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  pc.onicecandidate = e => { if (e.candidate) send({ t: 'rtc', to: id, data: { ice: e.candidate } }); };
+  pc.ontrack = e => {
+    let a = peer.audio;
+    if (!a) { a = document.createElement('audio'); a.autoplay = true; a.playsInline = true; audioBox.appendChild(a); peer.audio = a; }
+    a.srcObject = e.streams[0]; a.play().catch(() => {});
+    watchLevel(id, e.streams[0], id);
+  };
+  pc.onconnectionstatechange = () => {
+    if (['failed', 'closed'].includes(pc.connectionState) && peers[id] === peer) { closePeer(id); setTimeout(syncPeers, 1500); }
+  };
+  return peer;
+}
+async function makeOffer(id){
+  if (!localStream || peers[id]) return;
+  const peer = newPeer(id);
+  try { const o = await peer.pc.createOffer(); await peer.pc.setLocalDescription(o); send({ t: 'rtc', to: id, data: { sdp: peer.pc.localDescription } }); }
+  catch { closePeer(id); }
+}
+async function flushIce(peer){ for (const c of peer.pending.splice(0)) await peer.pc.addIceCandidate(c).catch(() => {}); }
+async function onRtc(from, data){
+  if (!voiceOn || !localStream || !data) return;
+  try {
+    if (data.sdp) {
+      if (data.sdp.type === 'offer') {
+        if (peers[from]) closePeer(from);
+        const peer = newPeer(from);
+        await peer.pc.setRemoteDescription(data.sdp); await flushIce(peer);
+        const a = await peer.pc.createAnswer(); await peer.pc.setLocalDescription(a);
+        send({ t: 'rtc', to: from, data: { sdp: peer.pc.localDescription } });
+      } else {
+        const peer = peers[from];
+        if (peer && peer.pc.signalingState === 'have-local-offer') { await peer.pc.setRemoteDescription(data.sdp); await flushIce(peer); }
+      }
+    } else if (data.ice) {
+      const peer = peers[from]; if (!peer) return;
+      if (peer.pc.remoteDescription) await peer.pc.addIceCandidate(data.ice).catch(() => {}); else peer.pending.push(data.ice);
+    }
+  } catch (e) { console.warn('rtc', e); }
+}
+// Đo âm lượng để viền xanh người đang nói
+function watchLevel(key, stream, pid){
+  stopLevel(key); const a = ac(); if (!a) return;
+  try {
+    const src = a.createMediaStreamSource(stream), an = a.createAnalyser(); an.fftSize = 256; src.connect(an);
+    levels[key] = { an, src, pid, buf: new Uint8Array(an.frequencyBinCount) };
+  } catch {}
+}
+function stopLevel(key){ const l = levels[key]; if (l) { try { l.src.disconnect(); } catch {} delete levels[key]; } }
+setInterval(() => {
+  const talking = new Set();
+  for (const k in levels) {
+    const l = levels[k]; if (k === 'local' && micMuted) continue;
+    l.an.getByteFrequencyData(l.buf); let sum = 0; for (const v of l.buf) sum += v;
+    if (sum / l.buf.length > 14) talking.add(l.pid);
+  }
+  document.querySelectorAll('[data-pid]').forEach(el => el.classList.toggle('speaking', talking.has(el.dataset.pid)));
+}, 150);
+
+function topBtns(){
+  return `<button class="sm" id="snd" title="Bật/tắt âm thanh game">${muted ? '🔇' : '🔊'}</button>` + (voiceOn
+    ? `<button class="sm ${micMuted ? 'off' : 'on'}" id="vmute">${micMuted ? '🎙️ Mic đang tắt' : '🎙️ Đang bật mic'}</button><button class="sm" id="vleave">Rời voice</button>`
+    : `<button class="sm" id="vjoin">🎙️ Vào voice</button>`);
+}
+function bindTop(){
+  const $ = id => document.getElementById(id);
+  if ($('snd')) $('snd').onclick = () => { muted = !muted; store.set('skull.muted', muted ? '1' : '0'); if (!muted) sfx('turn'); render(); };
+  if ($('vjoin')) $('vjoin').onclick = voiceStart;
+  if ($('vleave')) $('vleave').onclick = voiceStop;
+  if ($('vmute')) $('vmute').onclick = toggleMute;
 }
 
 render();
