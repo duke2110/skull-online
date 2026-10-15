@@ -443,6 +443,12 @@ function renderLobby(){
       : `<div>${S.settings.timer ? S.settings.timer + ' giây' : 'Không giới hạn'}</div>`}
     <div style="color:var(--dim);font-size:.82rem;margin-top:6px">Hết giờ hoặc rớt mạng thì bot sẽ chơi thay cho bạn lượt đó.</div>
   </div>
+  <div class="card">
+    <div class="lbl">Luật lật đĩa khi thách đấu</div>
+    ${host ? `<select id="flipRule"><option value="0" ${S.settings.freeFlip ? '' : 'selected'}>Luật gốc: lật hết đĩa của mình trước</option><option value="1" ${S.settings.freeFlip ? 'selected' : ''}>Tự do: lật đĩa của bất kỳ ai trước</option></select>`
+      : `<div>${S.settings.freeFlip ? 'Tự do: lật đĩa của bất kỳ ai trước' : 'Luật gốc: lật hết đĩa của mình trước'}</div>`}
+    <div style="color:var(--dim);font-size:.82rem;margin-top:6px">Luật gốc làm việc úp đầu lâu của mình trở nên rủi ro nếu bạn là người cược. Trong cả hai cách, mỗi chồng đều lật từ trên xuống.</div>
+  </div>
   ${scoreCard()}
   <div style="margin-top:12px">
     ${host ? `<button class="primary" style="width:100%" id="start" ${S.players.length < 2 ? 'disabled' : ''}>Bắt đầu${S.players.length < 3 ? ' (nên có 3+ người, hoặc thêm bot)' : ''}</button>` : `<div class="card" style="text-align:center;color:var(--dim)">Đợi chủ phòng bắt đầu…</div>`}
@@ -453,6 +459,7 @@ function renderLobby(){
   const st = document.getElementById('start'); if (st) st.onclick = () => send({ t: 'start' });
   const ab = document.getElementById('addbot'); if (ab) ab.onclick = () => send({ t: 'addbot' });
   const tm = document.getElementById('timer'); if (tm) tm.onchange = () => send({ t: 'settings', timer: +tm.value });
+  const fr = document.getElementById('flipRule'); if (fr) fr.onchange = () => send({ t: 'settings', freeFlip: fr.value === '1' });
   $app.querySelectorAll('[data-kick]').forEach(b => b.onclick = () => send({ t: 'kick', id: b.dataset.kick }));
 }
 
@@ -506,7 +513,7 @@ function renderGame(){
     banner = `Cược hiện tại: <b>${S.bid}</b> hoa hồng (${esc(bidder.name)}). ` + (myTurn ? '<b>Tới lượt bạn:</b> cược cao hơn hoặc bỏ qua.' : `Đợi <b>${esc(cur.name)}</b>…`) + cdTxt;
   } else if (phase === 'flip') {
     bcls = ch.id === S.you ? 'me' : '';
-    banner = `<b>${esc(ch.name)}</b> phải lật <b>${S.bid}</b> hoa hồng — đã lật <b>${S.flowers}</b>.` + (ch.id === S.you ? (myUnrev > 0 ? ' Hãy lật đĩa của mình trước.' : ' Chọn đĩa của người khác để lật.') : '') + cdTxt;
+    banner = `<b>${esc(ch.name)}</b> phải lật <b>${S.bid}</b> hoa hồng — đã lật <b>${S.flowers}</b>.` + (ch.id === S.you ? (free ? ' Chọn đĩa của bất kỳ ai để lật (từ trên xuống).' : (myUnrev > 0 ? ' Hãy lật đĩa của mình trước.' : ' Chọn đĩa của người khác để lật.')) : '') + cdTxt;
   } else if (phase === 'choose') {
     bcls = ch.id === S.you ? 'me' : '';
     banner = (ch.id === S.you ? '💀 Bạn lật trúng đầu lâu của chính mình! <b>Chọn đĩa muốn bỏ.</b>' : `💀 ${esc(ch.name)} trúng đầu lâu của chính mình, đang chọn đĩa bỏ…`) + cdTxt;
@@ -521,10 +528,10 @@ function renderGame(){
 
   // ghế quanh bàn: tôi ở dưới cùng, đi theo chiều kim đồng hồ theo thứ tự lượt
   const n = S.players.length, mi = S.players.indexOf(me);
-  const flipping = phase === 'flip' && ch.id === S.you;
+  const flipping = phase === 'flip' && ch.id === S.you, free = !!S.settings.freeFlip;
   const seats = S.players.map((p, k) => {
     const i = (k - mi + n) % n, pos = seatPos(i, n), mine = p.id === S.you, top = pos.y < 50;
-    const canFlip = flipping && !p.out && (myUnrev > 0 ? mine : (!mine && p.mat.some(d => !d.up)));
+    const canFlip = flipping && !p.out && (free ? p.mat.some(d => !d.up) : (myUnrev > 0 ? mine : (!mine && p.mat.some(d => !d.up))));
     const tags = [
       p.id === S.bidder && S.bid > 0 && (phase === 'bid' || phase === 'flip') ? `<span class="tag bid${ANIM.pop ? ' pop' : ''}">cược ${S.bid}</span>` : '',
       p.passed && phase === 'bid' ? '<span class="tag">bỏ qua</span>' : '',
