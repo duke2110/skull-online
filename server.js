@@ -204,7 +204,7 @@ function act(room, p, m, ws) {
       if (room.phase !== 'flip' || room.challenger !== me) return bad(ws, 'Bạn không phải người thách đấu.');
       const t = room.players.find(q => q.id === m.target);
       if (!t || t.out) return bad(ws, 'Mục tiêu không hợp lệ.');
-      if (unrevealed(p) > 0 && t !== p) return bad(ws, 'Phải lật hết đĩa của mình trước.');
+      if (!room.settings.freeFlip && unrevealed(p) > 0 && t !== p) return bad(ws, 'Phải lật hết đĩa của mình trước.');
       if (unrevealed(t) <= 0) return bad(ws, 'Người này hết đĩa để lật.');
       const card = t.stack[t.stack.length - 1 - t.revealed]; t.revealed++;
       log(room, `${p.name} lật đĩa của ${t === p ? 'mình' : t.name}: ${card === 'S' ? '💀' : '🌹'}`);
@@ -236,11 +236,13 @@ function act(room, p, m, ws) {
 function botMove(room, p) {
   const own = p.stack, ownHasSkull = own.includes('S');
   let safe = 0; for (let i = own.length - 1; i >= 0 && own[i] !== 'S'; i--) safe++;
-  const ownSafe = ownHasSkull ? safe : own.length;
+  const free = room.settings.freeFlip;
+  const ownSafe = free ? own.filter(t => t === 'F').length : (ownHasSkull ? safe : own.length);
   const others = room.players.filter(q => q !== p && !q.out);
   const othersCount = others.reduce((n, q) => n + q.stack.length, 0);
   const T = total(room);
-  const bidFor = (extra = 0) => clamp(Math.max(1, ownSafe + (ownHasSkull ? 0 : Math.floor(othersCount * .3 * Math.random() + extra))), 1, T);
+  const noOthers = !free && ownHasSkull;
+  const bidFor = (extra = 0) => clamp(Math.max(1, ownSafe + (noOthers ? 0 : Math.floor(othersCount * .3 * Math.random() + extra))), 1, T);
   const pickDisc = () => {
     if (p.hand.includes('S') && !ownHasSkull && Math.random() < .3) return 'S';
     return p.hand.includes('F') ? 'F' : 'S';
@@ -254,13 +256,14 @@ function botMove(room, p) {
       return { t: 'place', type: pickDisc() };
     }
     case 'bid': {
-      const est = ownSafe + (ownHasSkull ? 0 : Math.floor(othersCount * .4)) + (Math.random() < .3 ? 1 : 0);
+      const est = ownSafe + (noOthers ? 0 : Math.floor(othersCount * .4)) + (Math.random() < .3 ? 1 : 0);
       const nb = room.bid + 1;
       if (nb <= T && nb <= est && Math.random() < .85) return { t: 'bid', n: nb };
       return { t: 'pass' };
     }
     case 'flip': {
-      if (unrevealed(p) > 0) return { t: 'flip', target: p.id };
+      const ownTop = own[own.length - 1 - p.revealed];
+      if (unrevealed(p) > 0 && (!free || ownTop === 'F')) return { t: 'flip', target: p.id };
       const c = others.filter(q => unrevealed(q) > 0);
       return { t: 'flip', target: (c.length ? rnd(c) : p).id };
     }
@@ -320,7 +323,7 @@ setInterval(() => {
     if (!room.players.some(p => !p.bot && p.connected)) { room.deadline = null; continue; } // không ai xem thì tạm dừng
     try { tick(room); } catch (e) { console.error(e); room.deadline = null; }
   }
-}, 250);
+}, Math.max(10, Math.round(250 / SPEED)));
 
 // ---------- Views ----------
 function view(room, me) {
@@ -399,7 +402,7 @@ wss.on('connection', ws => {
 function handle(ws, m) {
   if (m.t === 'create') {
     const name = clean(m.name); if (!name) return err(ws, 'Nhập tên của bạn.');
-    const room = { code: newCode(), players: [], phase: 'lobby', log: [], round: 0, hostId: null, lastActive: Date.now(), settings: { timer: 60 }, scores: {}, history: [], past: [], chat: [], chatSeq: 0, deadline: null };
+    const room = { code: newCode(), players: [], phase: 'lobby', log: [], round: 0, hostId: null, lastActive: Date.now(), settings: { timer: 60, freeFlip: false }, scores: {}, history: [], past: [], chat: [], chatSeq: 0, deadline: null };
     const p = mkPlayer(name); room.players.push(p); room.hostId = p.id; rooms.set(room.code, room);
     return attach(ws, room, p);
   }
@@ -440,8 +443,10 @@ function handle(ws, m) {
   }
   const host = room.hostId === p.id;
   if (m.t === 'settings') {
-    if (!host || room.phase !== 'lobby' || !TIMERS.includes(m.timer)) return;
-    room.settings.timer = m.timer; return broadcast(room);
+    if (!host || room.phase !== 'lobby') return;
+    if (TIMERS.includes(m.timer)) room.settings.timer = m.timer;
+    if (typeof m.freeFlip === 'boolean') room.settings.freeFlip = m.freeFlip;
+    return broadcast(room);
   }
   if (m.t === 'addbot') {
     if (!host || room.phase !== 'lobby') return;
